@@ -50,11 +50,12 @@ public class Client {
 //                channelFuture.channel().writeAndFlush(message);
 //                System.out.println("Enter message to server: ");
             TextMessage textMessage = new TextMessage();
-            textMessage.setText("textFile");
+            textMessage.setText("GU");
 //                textMessage.setText(scanner.nextLine());
 //                System.out.println("Try to send message: " + textMessage.getText());
 //
             channelFuture.channel().writeAndFlush(textMessage);
+            channelFuture.channel().closeFuture().sync();
 
             try {
                 Thread.sleep(1000);

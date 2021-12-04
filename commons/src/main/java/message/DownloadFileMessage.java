@@ -1,6 +1,6 @@
 package message;
 
-public class DownloadFileRequestMessage extends Message{
+public class DownloadFileMessage extends Message{
 
     private String path;
 

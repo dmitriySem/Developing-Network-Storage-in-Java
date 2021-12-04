@@ -2,6 +2,7 @@ package ru.gb.storage.client;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
+import message.EndFileMessage;
 import message.FileMessage;
 import message.Message;
 import message.TextMessage;
@@ -18,11 +19,16 @@ public class ClientHendler extends SimpleChannelInboundHandler<Message> {
         }
 
         if (msg instanceof FileMessage){
+            System.out.println("new incoming file transfer message");
             FileMessage message = (FileMessage) msg;
             try (RandomAccessFile randomAccessFile = new RandomAccessFile("File","rw")) {
+                randomAccessFile.seek(message.getStartPosition());
                 randomAccessFile.write(message.getContent());
             }
+        }
 
+        if (msg instanceof EndFileMessage){
+            System.out.println("Load of file is finished");
             ctx.close();
         }
     }
