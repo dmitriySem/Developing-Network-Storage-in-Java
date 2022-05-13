@@ -12,6 +12,9 @@ import io.netty.handler.codec.LengthFieldPrepender;
 import json.JsonDecoder;
 import json.JsonEncoder;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
 public class Server {
     private final int port;
 
@@ -26,6 +29,7 @@ public class Server {
     public void start() throws InterruptedException {
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(1);
         NioEventLoopGroup workerGroup = new NioEventLoopGroup();
+        ExecutorService threadPool = Executors.newCachedThreadPool();
         try {
             ServerBootstrap server = new ServerBootstrap();
             server
@@ -39,7 +43,7 @@ public class Server {
                                     new LengthFieldPrepender(3),
                                     new JsonDecoder(),
                                     new JsonEncoder(),
-                                    new ServerHandler()
+                                    new ServerHandler(threadPool)
                             );
                         }
                     })
@@ -54,6 +58,7 @@ public class Server {
         } finally {
             bossGroup.shutdownGracefully();
             workerGroup.shutdownGracefully();
+            threadPool.shutdownNow();
         }
     }
 }

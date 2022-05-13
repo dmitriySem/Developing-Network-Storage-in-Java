@@ -2,18 +2,21 @@ package ru.gb.storage.server;
 
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import message.DownloadFileRequestMessage;
-import message.FileMessage;
-import message.Message;
-import message.TextMessage;
+import message.*;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.concurrent.Executor;
 
 public class ServerHandler extends SimpleChannelInboundHandler<Message> {
     private static final int BUFFER_SIZE =1024*64;
+    private final Executor executor;
+
+    public ServerHandler(Executor executor) {
+        this.executor = executor;
+    }
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) {
@@ -24,15 +27,15 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
     protected void channelRead0(ChannelHandlerContext ctx, Message msg) {
         if (msg instanceof TextMessage) {
             TextMessage message = (TextMessage) msg;
-            System.out.println("Text message from client: " + message.getText());
-            SendFile(message.getText(),ctx);
+            String FileName = message.getText();
+            System.out.println("Text message from client: " + FileName);
+            SendFile(FileName,ctx);
 
-//            ctx.writeAndFlush(msg);
         }
 
 
-        if (msg instanceof DownloadFileRequestMessage){
-            DownloadFileRequestMessage message = (DownloadFileRequestMessage) msg;
+        if (msg instanceof DownloadFileMessage){
+            DownloadFileMessage message = (DownloadFileMessage) msg;
             try (RandomAccessFile accessFile = new RandomAccessFile(message.getPath(), "r")){
                 final FileMessage fileMessage = new FileMessage();
                 byte[] content = new byte[(int) accessFile.length()];
@@ -52,20 +55,36 @@ public class ServerHandler extends SimpleChannelInboundHandler<Message> {
     }
 
     private void SendFile(String FileName, ChannelHandlerContext ctx){
+        executor.execute(() ->{
+            final FileMessage fileMessage = new FileMessage();
+            fileMessage.setFileName(FileName);
 
-        final FileMessage fileMessage = new FileMessage();
-//        System.out.println("Path of workDir:" + fileMessage.getWorkDir());
-        try (RandomAccessFile accessFile = new RandomAccessFile(fileMessage.getWorkDir() + File.separator + FileName, "r")){
-            byte[] content = new byte[(int) accessFile.length()];
-            accessFile.read(content);
-            fileMessage.setContent(content);
-            ctx.writeAndFlush(fileMessage);
+            try (RandomAccessFile accessFile = new RandomAccessFile(fileMessage.getWorkDir() + File.separator + FileName, "r")){
+                long fileLength = accessFile.length();
+                do {
+                    var position = accessFile.getFilePointer();
+                    final long availableBytes = fileLength - position;
+                    byte[] content;
 
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+                    if (availableBytes >=BUFFER_SIZE){
+                        content = new byte[BUFFER_SIZE];
+                    } else {
+                        content = new byte[(int) availableBytes];
+                    }
+                    accessFile.read(content);
+                    fileMessage.setContent(content);
+                    fileMessage.setStartPosition(position);
+                    ctx.writeAndFlush(fileMessage).sync();
+
+                } while (accessFile.getFilePointer() < fileLength);
+
+                ctx.writeAndFlush(new EndFileMessage());
+
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
+
 
     }
 
